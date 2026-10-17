@@ -40,6 +40,23 @@ _REJECT_DRAIN_SECONDS = 2.0
 _JOB_PATH = re.compile(r"/api/v1/jobs/([0-9a-f]{32})")
 _BOUNDARY = re.compile(r"[0-9A-Za-z'()+_,./:=? -]{1,70}")
 _INDEX_PATH = Path(__file__).resolve().parents[1] / "static" / "index.html"
+_FRONTEND_ASSETS = {
+    '/styles.css': 'text/css; charset=utf-8',
+    '/app.js': 'text/javascript; charset=utf-8',
+    '/analysis-client.js': 'text/javascript; charset=utf-8',
+    '/demo.js': 'text/javascript; charset=utf-8',
+    '/pdf-export.js': 'text/javascript; charset=utf-8',
+    '/vendor/pdf-lib.min.js': 'text/javascript; charset=utf-8',
+    '/vendor/fontkit.umd.min.js': 'text/javascript; charset=utf-8',
+    '/vendor/THIRD-PARTY.txt': 'text/plain; charset=utf-8',
+    '/vendor/pdf-lib.LICENSE.md': 'text/plain; charset=utf-8',
+    '/vendor/fontkit.LICENSE.md': 'text/plain; charset=utf-8',
+    '/assets/cash-desk.svg': 'image/svg+xml',
+    '/assets/fonts/NotoSans-Regular.ttf': 'font/ttf',
+    '/assets/fonts/NotoSans-Bold.ttf': 'font/ttf',
+    '/assets/fonts/NotoSans.LICENSE.txt': 'text/plain; charset=utf-8',
+}
+_MAX_STATIC_BYTES = 8 * 1024 * 1024
 _SAFE_ANALYSIS_FAILURES = {
     AnalysisErrorCode.ANALYSIS_FAILED: "Video analysis failed. See local diagnostics.",
     AnalysisErrorCode.TIME_BUDGET_EXCEEDED: "Analysis exceeded its configured processing budget. No verdict was produced.",
@@ -346,6 +363,10 @@ class AnalysisHTTPServer(ThreadingHTTPServer):
 
 def _handler_factory(manager: _JobManager, api_key: str):
     expected_key = api_key.encode("utf-8")
+    frontend_setting = manager.config.get('frontend_dir')
+    frontend_root = Path(frontend_setting).resolve() if frontend_setting else None
+    if frontend_root is not None and not (frontend_root / 'index.html').is_file():
+        raise ValueError('Configured frontend is unavailable.')
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "ForteAI"
@@ -405,14 +426,17 @@ def _handler_factory(manager: _JobManager, api_key: str):
                 # produce a second response or disclose request contents.
                 pass
 
-        def _index(self) -> None:
+        def _static(self, location: Path, content_type: str, *, root: Path) -> None:
             try:
-                content = _INDEX_PATH.read_bytes()
+                location = location.resolve()
+                if not location.is_relative_to(root.resolve()) or location.stat().st_size > _MAX_STATIC_BYTES:
+                    raise OSError('Unsupported frontend asset')
+                content = location.read_bytes()
             except OSError:
                 self._error(503, "web_unavailable", "The local web interface is unavailable.")
                 return
             self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -420,7 +444,8 @@ def _handler_factory(manager: _JobManager, api_key: str):
             self.send_header(
                 "Content-Security-Policy",
                 "default-src 'none'; style-src 'self' 'unsafe-inline'; "
-                "script-src 'self' 'unsafe-inline'; img-src data:; "
+                "script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+                "font-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; "
                 "connect-src 'self'; base-uri 'none'; object-src 'none'; "
                 "frame-ancestors 'none'; form-action 'self'",
             )
@@ -429,6 +454,12 @@ def _handler_factory(manager: _JobManager, api_key: str):
                 self.wfile.write(content)
             except (BrokenPipeError, ConnectionResetError):
                 pass
+
+        def _index(self) -> None:
+            if frontend_root is None:
+                self._static(_INDEX_PATH, 'text/html; charset=utf-8', root=_INDEX_PATH.parent)
+            else:
+                self._static(frontend_root / 'index.html', 'text/html; charset=utf-8', root=frontend_root)
 
         def _authorized(self) -> bool:
             keys = self.headers.get_all("X-API-Key", [])
@@ -457,7 +488,8 @@ def _handler_factory(manager: _JobManager, api_key: str):
                 self._index()
                 return
             if path == "/health":
-                self._json(200, {"status": "ok", "backend": "local", "workers": 1})
+                self._json(200, {"status": "ok", "backend": "local", "workers": 1,
+                                 **({'ui': 'fortelens'} if frontend_root is not None else {})})
                 return
             if path.startswith("/api/v1/jobs/"):
                 if not self._authorized():
@@ -468,6 +500,9 @@ def _handler_factory(manager: _JobManager, api_key: str):
                     self._error(404, "job_not_found", "Job not found or expired.")
                 else:
                     self._json(200, result)
+                return
+            if frontend_root is not None and path in _FRONTEND_ASSETS:
+                self._static(frontend_root / path.lstrip('/'), _FRONTEND_ASSETS[path], root=frontend_root)
                 return
             self._error(404, "not_found", "Endpoint not found.")
 

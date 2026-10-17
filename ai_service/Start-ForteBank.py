@@ -306,13 +306,14 @@ def main() -> int:
     url = f"http://127.0.0.1:{args.port}"
     if port_is_busy(args.port):
         health = get_json(url, "/health")
-        if health and health.get("status") == "ok" and health.get("backend") == "local" and not args.cpu and args.model_port == 11435:
+        if (health and health.get("status") == "ok" and health.get("backend") == "local"
+                and health.get("ui") == "fortelens" and not args.cpu and args.model_port == 11435):
             say("Сайт уже запущен: " + url)
             say("Повторный экземпляр не создаётся. Его модель, ключ и параметры памяти этим запуском не менялись.")
             if not args.no_browser:
                 webbrowser.open(url)
             return 0
-        say("Порт сайта занят. Для отдельного запуска задайте свободный --port, например --port 8002.")
+        say("Порт сайта занят другим сервисом или старым интерфейсом. Для отдельного запуска задайте свободный --port, например --port 8003.")
         return 2
     if not ollama:
         say("Установите Ollama для своей ОС: https://ollama.com/download. Затем запустите этот файл снова.")
@@ -340,6 +341,7 @@ def main() -> int:
             version = wait_service(origin, "/api/version", lambda item: bool(item.get("version")), model_process)
         model = ensure_model(ollama, origin, environment, config, args.offline)
         config.update({"base_url": origin, "rules_path": str(ROOT / "config/rules.json"),
+                       "frontend_dir": str(ROOT.parent / "frontend/dist"),
                        "visual_checks_path": str(ROOT / "config" / config["visual_checks_path"])
                        if config.get("visual_checks_path") else None,
                        "runtime_dir": str(RUNTIME), "num_ctx": profile["num_ctx"],
@@ -355,8 +357,9 @@ def main() -> int:
             raise LaunchError("Порт сайта успел занять другой процесс. Укажите свободный --port.")
         api_key(environment)
         api_process = start_child([str(python), "-m", "forte_ai", "serve", "--config", str(config_path),
-                                   "--host", "127.0.0.1", "--port", str(args.port)], environment, "api.log", owned)
-        wait_service(url, "/health", lambda item: item.get("status") == "ok" and item.get("backend") == "local", api_process)
+                                   "--host", "0.0.0.0", "--port", str(args.port)], environment, "api.log", owned)
+        wait_service(url, "/health", lambda item: item.get("status") == "ok" and item.get("backend") == "local"
+                     and item.get("ui") == "fortelens", api_process)
         write_json(PORTABLE / "launch.json", {
             "created_at_utc": datetime.now(timezone.utc).isoformat(), "hardware": hardware,
             "selected_profile": profile, "ollama": version, "model": model,

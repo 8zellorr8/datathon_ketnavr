@@ -77,6 +77,8 @@ def load_config(path: str | Path) -> dict:
     config = {**DEFAULTS, **json.loads(location.read_text(encoding='utf-8'))}
     rules_path = Path(config.get('rules_path', 'rules.json'))
     config['rules_path'] = str((location.parent / rules_path).resolve())
+    if config.get('frontend_dir') is not None:
+        config['frontend_dir'] = str((location.parent / Path(config['frontend_dir'])).resolve())
     if config.get('visual_checks_path') is not None:
         config['visual_checks_path'] = str((location.parent / Path(config['visual_checks_path'])).resolve())
     runtime_path = Path(config['runtime_dir'])
