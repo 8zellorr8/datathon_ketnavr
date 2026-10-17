@@ -105,7 +105,7 @@ def _default_analyzer(video_path, config, *, deadline):
     return analyze_video(video_path, config, deadline=deadline)
 
 
-def _validate_analysis_result(result: dict) -> None:
+def validate_analysis_result(result: dict) -> None:
     """Reject malformed model/pipeline results before they reach API clients."""
     if not isinstance(result, dict) or result.get("status") != "done":
         raise ValueError("Analyzer did not return a completed result")
@@ -167,6 +167,10 @@ def _validate_analysis_result(result: dict) -> None:
                 raise ValueError("Invalid base64 evidence image") from exc
             if not jpeg.startswith(b"\xff\xd8") or not jpeg.endswith(b"\xff\xd9"):
                 raise ValueError("Evidence images must be JPEG data")
+
+
+# Backward compatibility for integrations/tests using the original private name.
+_validate_analysis_result = validate_analysis_result
 
 
 class _JobManager:
@@ -243,7 +247,7 @@ class _JobManager:
                 if job.status != "processing":
                     return
             result = self.analyzer(job.path, self.config, deadline=job.deadline)
-            _validate_analysis_result(result)
+            validate_analysis_result(result)
             # Validate serializability before an HTTP reader sees the result.
             json.dumps(result, ensure_ascii=False, allow_nan=False)
             with self.lock:
@@ -347,6 +351,15 @@ def _extract_mov(body: bytes, content_type: str) -> bytes:
     if not isinstance(payload, bytes) or not payload:
         raise _RequestError(400, "empty_file", "The uploaded video is empty.")
     return payload
+
+
+# Reuse the existing worker, upload contract and safe upload errors from other
+# HTTP transports. These aliases preserve the original AI service integrations.
+JobManager = _JobManager
+extract_mov = _extract_mov
+UploadError = _RequestError
+FRONTEND_ASSETS = _FRONTEND_ASSETS
+MAX_STATIC_BYTES = _MAX_STATIC_BYTES
 
 
 class AnalysisHTTPServer(ThreadingHTTPServer):

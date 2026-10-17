@@ -12,4 +12,13 @@ if (-not $env:FORTE_API_KEY) {
     $env:FORTE_API_KEY = (Get-Content -LiteralPath $keyPath -Raw).Trim()
     Write-Host "API key is stored locally: $keyPath"
 }
-& '.\.venv\Scripts\python.exe' -m forte_ai serve --port $Port
+$pythonPath = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+$configPath = Join-Path $PSScriptRoot 'config\local.json'
+Push-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
+try {
+    & $pythonPath -m backend serve --config $configPath --port $Port
+    $backendExitCode = $LASTEXITCODE
+} finally {
+    Pop-Location
+}
+exit $backendExitCode

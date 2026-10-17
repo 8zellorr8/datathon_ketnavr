@@ -119,20 +119,25 @@ def prepare_python(offline: bool) -> Path:
             raise LaunchError("Не удалось создать venv. Для Linux может потребоваться пакет python3-venv.")
         chosen = venv_python(destination)
     check = (
-        "import importlib.metadata,re;"
+        "import importlib.metadata,re,fastapi,uvicorn;"
         "version=lambda name:tuple(map(int,re.findall(r'[0-9]+',importlib.metadata.version(name))[:3]));"
-        "ok=(0,6)<=version('imageio-ffmpeg')<(0,7) and (10,4)<=version('pillow')<(13,);"
+        "ok=(0,6)<=version('imageio-ffmpeg')<(0,7) and (10,4)<=version('pillow')<(13,) "
+        "and version('fastapi')==(0,143,3) and version('uvicorn')==(0,54,0);"
         "raise SystemExit(0 if ok else 1)"
     )
     result = subprocess.run([str(chosen), "-c", check], cwd=ROOT,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode:
         if offline:
-            raise LaunchError("Зависимости отсутствуют или отличаются. Первый запуск нужен без --offline.")
-        say("Устанавливаю зависимости из requirements.txt…")
-        result = subprocess.run([str(chosen), "-m", "pip", "install", "-r", str(ROOT / "requirements.txt")], cwd=ROOT)
+            raise LaunchError("Нужны зависимости FastAPI/Uvicorn и AI из backend/requirements.txt. Запустите один раз без --offline или установите этот файл в выбранное Python-окружение.")
+        say("Устанавливаю зависимости API и AI из backend/requirements.txt…")
+        result = subprocess.run([str(chosen), "-m", "pip", "install", "-r", str(ROOT.parent / "backend" / "requirements.txt")], cwd=ROOT)
         if result.returncode:
             raise LaunchError("Установка зависимостей не завершилась. Проверьте интернет и место на диске.")
+        result = subprocess.run([str(chosen), "-c", check], cwd=ROOT,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode:
+            raise LaunchError("После установки зависимости API или AI не загружаются. Проверьте выбранное Python-окружение и backend/requirements.txt.")
     ffmpeg_check = (
         "from forte_ai.video import ffmpeg_executable;import subprocess;"
         "subprocess.run([ffmpeg_executable(),'-version'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)"
@@ -308,6 +313,7 @@ def main() -> int:
     if port_is_busy(args.port):
         health = get_json(url, "/health")
         if (health and health.get("status") == "ok" and health.get("backend") == "local"
+                and health.get("backend_service") == "forte_backend"
                 and health.get("ui") == "fortelens" and health.get("ui_auth") == "local_session" and health.get("lan") == args.lan and not args.cpu and args.model_port == 11435):
             say("Сайт уже запущен: " + url)
             say("Повторный экземпляр не создаётся. Его модель, ключ и параметры памяти этим запуском не менялись.")
@@ -357,9 +363,17 @@ def main() -> int:
         if port_is_busy(args.port):
             raise LaunchError("Порт сайта успел занять другой процесс. Укажите свободный --port.")
         api_key(environment)
-        api_process = start_child([str(python), "-m", "forte_ai", "serve", "--config", str(config_path),
-                                   "--host", "0.0.0.0" if args.lan else "127.0.0.1", "--port", str(args.port)], environment, "api.log", owned)
+        # The backend package lives alongside ai_service; preserve any explicit
+        # Python search path while making the composition root importable from
+        # this launcher's established ai_service working directory.
+        backend_environment = {
+            **environment,
+            "PYTHONPATH": os.pathsep.join(filter(None, (str(ROOT.parent), environment.get("PYTHONPATH", "")))),
+        }
+        api_process = start_child([str(python), "-m", "backend", "serve", "--config", str(config_path),
+                                   "--host", "0.0.0.0" if args.lan else "127.0.0.1", "--port", str(args.port)], backend_environment, "api.log", owned)
         wait_service(url, "/health", lambda item: item.get("status") == "ok" and item.get("backend") == "local"
+                     and item.get("backend_service") == "forte_backend"
                      and item.get("ui") == "fortelens", api_process)
         write_json(PORTABLE / "launch.json", {
             "created_at_utc": datetime.now(timezone.utc).isoformat(), "hardware": hardware,
