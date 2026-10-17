@@ -1,4 +1,4 @@
-/* Local service adapter. The API key lives only in this page's memory. */
+/* Same-origin local browser session; no API key in the frontend. */
 (() => {
   'use strict';
   const MAX_FILE_BYTES = 64 * 1024 * 1024;
@@ -6,10 +6,10 @@
   const POLL_MS = 1000;
   const JOB_ID = /^[0-9a-f]{32}$/;
   const KNOWN_SOURCES = new Set(['https://adilet.zan.kz/rus/docs/V1900019680']);
-  let apiKey = '';
+
 
   const messages = Object.freeze({
-    unauthorized: 'API-ключ не принят. Проверь ключ локального сервиса и повтори запрос.',
+    unauthorized: 'Сессия завершилась. Обнови страницу локального сайта и повтори запрос.',
     queue_full: 'Сервис уже обрабатывает видео, очередь заполнена. Дождись завершения и попробуй снова.',
     upload_too_large: 'Размер запроса превышает 64 МиБ. Выбери MOV немного меньше 64 МиБ: служебные поля загрузки тоже занимают место.',
     invalid_extension: 'Для анализа нужен файл с расширением .mov.',
@@ -40,13 +40,7 @@
     error.code = code;
     return error;
   }
-  function isReady() { return apiKey.length > 0; }
-  function setApiKey(value) {
-    const next = typeof value === 'string' ? value.trim() : '';
-    // Header values must be printable ASCII, without control characters.
-    apiKey = next.length <= 512 && /^[\x21-\x7e]*$/.test(next) ? next : '';
-    window.dispatchEvent(new CustomEvent('fortelens:credentials-changed'));
-  }
+  function isReady() { return true; }
   function text(value) {
     if (typeof value !== 'string' || !value.trim()) throw failure();
     return value.trim();
@@ -136,7 +130,7 @@
     if (!Number.isFinite(file.size) || file.size <= 0) throw failure('empty_file');
     if (file.size >= MAX_FILE_BYTES) throw failure('upload_too_large');
     if (!isReady()) throw failure('unauthorized');
-    const requestKey = apiKey;
+
     const controller = new AbortController();
     let deadlineExpired = false;
     const started = performance.now();
@@ -145,18 +139,18 @@
     signal?.addEventListener('abort', abort, { once: true });
     const reportStatus = message => { if (typeof onStatus === 'function') onStatus(message); };
     const request = (url, options = {}) => fetch(url, { ...options, signal: controller.signal,
-      headers: { 'X-API-Key': requestKey }, credentials: 'omit', cache: 'no-store', mode: 'same-origin', redirect: 'error' });
+      credentials: 'same-origin', cache: 'no-store', mode: 'same-origin', redirect: 'error' });
     try {
       const data = new FormData();
       data.append('file', file, file.name);
       reportStatus('Передаём видео в локальный сервис. Загрузка и анализ могут занять до 5 минут.');
-      const submitted = await readResponse(await request('/api/v1/analyze', { method: 'POST', body: data }), 202, controller.signal);
+      const submitted = await readResponse(await request('/ui/api/v1/analyze', { method: 'POST', body: data }), 202, controller.signal);
       if (!JOB_ID.test(submitted.job_id || '') || submitted.status !== 'processing') throw failure();
       const jobId = submitted.job_id;
       while (true) {
         if (performance.now() - started >= DEADLINE_MS) { deadlineExpired = true; controller.abort(); throw failure('analysis_timeout'); }
         reportStatus('Локальная модель проверяет видео. Ожидание включает очередь; результат появится после полной обработки.');
-        const job = await readResponse(await request(`/api/v1/jobs/${jobId}`), 200, controller.signal);
+        const job = await readResponse(await request(`/ui/api/v1/jobs/${jobId}`), 200, controller.signal);
         if (job.job_id !== jobId || !['processing', 'done', 'failed'].includes(job.status)) throw failure();
         if (job.status === 'done') return normalizeResult(job, jobId);
         if (job.status === 'failed') {
@@ -176,21 +170,5 @@
       signal?.removeEventListener('abort', abort);
     }
   }
-  function bindCredentials() {
-    const input = document.getElementById('api-key');
-    const toggle = document.getElementById('toggle-api-key');
-    if (!input || !toggle) return;
-    input.addEventListener('input', () => setApiKey(input.value));
-    toggle.addEventListener('click', () => {
-      const visible = input.type === 'password';
-      input.type = visible ? 'text' : 'password';
-      toggle.textContent = visible ? 'Скрыть' : 'Показать';
-      toggle.setAttribute('aria-pressed', String(visible));
-      toggle.setAttribute('aria-label', visible ? 'Скрыть API-ключ' : 'Показать API-ключ');
-    });
-    setApiKey(input.value);
-  }
-  window.ForteLensAnalysis = Object.freeze({ available: true, isReady, setApiKey, analyze });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindCredentials, { once: true });
-  else bindCredentials();
+  window.ForteLensAnalysis = Object.freeze({ available: true, isReady, analyze });
 })();

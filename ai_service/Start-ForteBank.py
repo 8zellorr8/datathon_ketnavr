@@ -278,6 +278,7 @@ def main() -> int:
     parser.add_argument("--startup-check", action="store_true", help="Поднять сервисы, проверить готовность без видео и завершить собственные процессы")
     parser.add_argument("--offline", action="store_true", help="Запретить установку зависимостей и скачивание весов")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--lan", action="store_true", help="Доступ с устройств в одной Wi-Fi сети")
     parser.add_argument("--cpu", action="store_true", help="Принудительный CPU-профиль; отдельный порт Ollama")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--model-port", type=int, default=11435)
@@ -307,7 +308,7 @@ def main() -> int:
     if port_is_busy(args.port):
         health = get_json(url, "/health")
         if (health and health.get("status") == "ok" and health.get("backend") == "local"
-                and health.get("ui") == "fortelens" and not args.cpu and args.model_port == 11435):
+                and health.get("ui") == "fortelens" and health.get("ui_auth") == "local_session" and health.get("lan") == args.lan and not args.cpu and args.model_port == 11435):
             say("Сайт уже запущен: " + url)
             say("Повторный экземпляр не создаётся. Его модель, ключ и параметры памяти этим запуском не менялись.")
             if not args.no_browser:
@@ -357,7 +358,7 @@ def main() -> int:
             raise LaunchError("Порт сайта успел занять другой процесс. Укажите свободный --port.")
         api_key(environment)
         api_process = start_child([str(python), "-m", "forte_ai", "serve", "--config", str(config_path),
-                                   "--host", "0.0.0.0", "--port", str(args.port)], environment, "api.log", owned)
+                                   "--host", "0.0.0.0" if args.lan else "127.0.0.1", "--port", str(args.port)], environment, "api.log", owned)
         wait_service(url, "/health", lambda item: item.get("status") == "ok" and item.get("backend") == "local"
                      and item.get("ui") == "fortelens", api_process)
         write_json(PORTABLE / "launch.json", {
@@ -369,10 +370,11 @@ def main() -> int:
             "ollama_environment_applied": not model_reused,
         })
         say("Сайт: " + url)
-        if environment.get("FORTE_API_KEY") and os.environ.get("FORTE_API_KEY"):
-            say("Вставьте в форму свой ключ FORTE_API_KEY.")
-        else:
-            say("Ключ для формы находится в файле: " + str(RUNTIME / "api-key.txt"))
+        say("Сайт открывается без API-ключа. Служебный ключ API хранится в data/runtime/api-key.txt.")
+        if args.lan:
+            for address in sorted({item[4][0] for item in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)}):
+                if not address.startswith("127."):
+                    say(f"Для устройств в вашей Wi-Fi сети: http://{address}:{args.port}")
         say("GPU обнаружена по данным системы; реальная скорость и размещение модели ещё не измерены этим запускателем.")
         say("Автозапуск не дообучает модель и не исправляет качество распознавания.")
         if args.startup_check:

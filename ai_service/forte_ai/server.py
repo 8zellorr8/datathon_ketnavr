@@ -9,6 +9,9 @@ from __future__ import annotations
 import base64
 import binascii
 import hmac
+import secrets
+import ipaddress
+from http.cookies import SimpleCookie
 import json
 import math
 import re
@@ -368,6 +371,10 @@ def _handler_factory(manager: _JobManager, api_key: str):
     if frontend_root is not None and not (frontend_root / 'index.html').is_file():
         raise ValueError('Configured frontend is unavailable.')
 
+    session_secret = secrets.token_hex(32)
+    ui_jobs = {}
+    ui_lock = threading.Lock()
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "ForteAI"
         sys_version = ""
@@ -439,6 +446,10 @@ def _handler_factory(manager: _JobManager, api_key: str):
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", "no-store")
+            if location.name == "index.html":
+                token = secrets.token_hex(24)
+                signature = hmac.new(session_secret.encode(), token.encode(), "sha256").hexdigest()
+                self.send_header("Set-Cookie", "fortelens_session=" + token + "." + signature + "; HttpOnly; SameSite=Strict; Path=/ui/api/v1")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header(
@@ -461,7 +472,37 @@ def _handler_factory(manager: _JobManager, api_key: str):
             else:
                 self._static(frontend_root / 'index.html', 'text/html; charset=utf-8', root=frontend_root)
 
+        def _browser_authorized(self) -> bool:
+            host = self.headers.get("Host", "")
+            try:
+                parsed = urlsplit("http://" + host)
+                name = parsed.hostname
+                valid_host = name == "localhost" or (ipaddress.ip_address(name).is_private and not ipaddress.ip_address(name).is_unspecified)
+                valid_host = valid_host and parsed.port == self.server.server_port and not parsed.username
+            except (ValueError, TypeError):
+                valid_host = False
+            origin = self.headers.get("Origin")
+            allowed = valid_host and (origin is None or origin == "http://" + host)
+            if self.command == "POST":
+                allowed = allowed and origin == "http://" + host
+            allowed = allowed and self.headers.get("Sec-Fetch-Site", "same-origin") not in ("cross-site", "same-site")
+            cookie = SimpleCookie()
+            try:
+                cookie.load(self.headers.get("Cookie", ""))
+                token = cookie["fortelens_session"].value if "fortelens_session" in cookie else ""
+            except Exception:
+                token = ""
+            parts = token.split(".")
+            valid_token = bool(re.fullmatch(r"[0-9a-f]{48}\.[0-9a-f]{64}", token)) and hmac.compare_digest(parts[1], hmac.new(session_secret.encode(), parts[0].encode(), "sha256").hexdigest())
+            self.browser_session = parts[0] if valid_token else None
+            if not allowed or not valid_token:
+                self._error(403, "unauthorized", "Reload the local website to start a browser session.")
+                return False
+            return True
+
         def _authorized(self) -> bool:
+            if urlsplit(self.path).path.startswith("/ui/api/v1/"):
+                return self._browser_authorized()
             keys = self.headers.get_all("X-API-Key", [])
             provided = keys[0].encode("utf-8") if len(keys) == 1 else b""
             if not hmac.compare_digest(provided, expected_key):
@@ -484,11 +525,13 @@ def _handler_factory(manager: _JobManager, api_key: str):
 
         def do_GET(self):
             path = urlsplit(self.path).path
+            if path.startswith("/ui/api/v1/"):
+                path = path[3:]
             if path in ("/", "/index.html"):
                 self._index()
                 return
             if path == "/health":
-                self._json(200, {"status": "ok", "backend": "local", "workers": 1,
+                self._json(200, {"status": "ok", "backend": "local", "workers": 1, "ui_auth": "local_session", "lan": self.server.server_address[0] == "0.0.0.0",
                                  **({'ui': 'fortelens'} if frontend_root is not None else {})})
                 return
             if path.startswith("/api/v1/jobs/"):
@@ -496,6 +539,10 @@ def _handler_factory(manager: _JobManager, api_key: str):
                     return
                 match = _JOB_PATH.fullmatch(path)
                 result = manager.get(match.group(1)) if match else None
+                if urlsplit(self.path).path.startswith("/ui/") and match:
+                    with ui_lock:
+                        if ui_jobs.get(match.group(1), (None, 0))[0] != self.browser_session:
+                            result = None
                 if result is None:
                     self._error(404, "job_not_found", "Job not found or expired.")
                 else:
@@ -508,7 +555,7 @@ def _handler_factory(manager: _JobManager, api_key: str):
 
         def do_POST(self):
             received_at = time.monotonic()
-            if urlsplit(self.path).path != "/api/v1/analyze":
+            if urlsplit(self.path).path not in ("/api/v1/analyze", "/ui/api/v1/analyze"):
                 self._error(404, "not_found", "Endpoint not found.")
                 return
             if not self._authorized():
@@ -563,6 +610,15 @@ def _handler_factory(manager: _JobManager, api_key: str):
                 # executor has been closed while an upload was being received.
                 reserved = False
                 manager.submit_reserved(upload_path, deadline, job_id)
+                if urlsplit(self.path).path.startswith("/ui/"):
+                    with ui_lock:
+                        now = time.monotonic()
+                        for old_id, (_, created) in list(ui_jobs.items()):
+                            if now - created > 3600:
+                                del ui_jobs[old_id]
+                        if len(ui_jobs) >= 1024:
+                            del ui_jobs[next(iter(ui_jobs))]
+                        ui_jobs[job_id] = (self.browser_session, now)
                 self._json(202, {"job_id": job_id, "status": "processing"})
             except _RequestError as exc:
                 self._error(exc.status, exc.code, exc.message)

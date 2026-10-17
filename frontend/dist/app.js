@@ -79,7 +79,7 @@
     $('load-demo').disabled = busy;
     $('analyze-button').disabled = !selected || busy || (state.source === 'file' && !clientReady());
     $('analyze-button').querySelector('span').textContent = state.phase === 'error' ? 'Повторить проверку' : state.source === 'demo' ? 'Проверить учебный пример' : 'Проверить видео';
-    $('analysis-hint').textContent = state.source === 'demo' ? 'Демонстрация интерфейса. Модель не запускается.' : !client?.available ? 'Локальный API недоступен.' : !clientReady() ? 'Введите API-ключ для запуска анализа.' : 'Результат появится после завершения локального анализа.';
+    $('analysis-hint').textContent = state.source === 'demo' ? 'Демонстрация интерфейса. Модель не запускается.' : !client?.available ? 'Локальный API недоступен.' : !clientReady() ? 'Обновите страницу локального сайта.' : 'Результат появится после завершения локального анализа.';
     $('analysis-result').hidden = !['done', 'error'].includes(state.phase);
     // Hidden and disabled are intentional: both UI and routing use the same guard.
     $('view-violations').hidden = !ready;
@@ -297,7 +297,7 @@
   window.addEventListener('hashchange', () => route());
   $('demo-tools').hidden = !demoMode;
   if (demoMode) { $('mode-badge').classList.add('demo'); $('mode-badge').innerHTML = '<span></span>Демонстрация'; }
-  if (client?.available) $('privacy-note').textContent = 'Видео передаётся только в локальный сервис после запуска анализа. Модель обрабатывает его на этом компьютере; внешние AI-сервисы не используются.';
+  if (client?.available) $('privacy-note').textContent = 'Видео передаётся только в локальный сервис после запуска анализа. Модель обрабатывает его на ноутбуке в вашей локальной сети; внешние AI-сервисы не используются.';
   window.addEventListener('fortelens:credentials-changed', renderUpload);
   if (demoMode) $('mode-badge').classList.remove('local');
   else if (client?.available) $('mode-badge').innerHTML = '<span></span>Локальный анализ';
