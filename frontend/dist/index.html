@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#971b49">
+  <meta name="description" content="ForteLens: загрузка видео и отчёт о найденных нарушениях с кадрами, временем и нормативными основаниями.">
+  <title>ForteLens · Загрузка видео</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23971b49'/%3E%3Cpath d='M18 18h28v8H26v8h17v8H26v12h-8z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/pdf-lib.min.js" defer></script>
+  <script src="vendor/fontkit.umd.min.js" defer></script>
+  <script src="pdf-export.js" defer></script>
+  <script src="analysis-client.js" defer></script>
+  <script src="demo.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header">
+    <a href="#upload" class="brand" aria-label="ForteLens — загрузка видео"><span class="brand-symbol">F<span></span></span><span>Forte<span class="brand-light">Lens</span></span></a>
+    <div class="header-caption">ВИДЕОАНАЛИТИКА КАССОВЫХ ОПЕРАЦИЙ</div>
+    <span class="version-badge" id="mode-badge"><span></span>Фронтенд-прототип</span>
+  </header>
+  <main id="main" tabindex="-1">
+    <section id="upload-view" class="upload-view" aria-labelledby="upload-heading">
+      <div class="intro"><span class="eyebrow">01 / ЗАГРУЗКА ВИДЕО</span><h1 id="upload-heading" tabindex="-1">Начните с видео.</h1><p>Загрузите запись кассовой операции для проверки.</p></div>
+      <div class="upload-card">
+        <input type="file" id="video-input" accept=".mov,.mp4,.webm,video/quicktime,video/mp4,video/webm" tabindex="-1" class="visually-hidden" aria-label="Видеофайл">
+        <button type="button" class="dropzone" id="dropzone" aria-label="Выбрать видео. MOV, MP4 или WebM, до 100 мегабайт"><span class="upload-art"><i data-icon="upload"></i><span class="art-dot"></span></span><strong>Перетащите видео сюда</strong><span class="dropzone-subtitle">или нажмите, чтобы выбрать файл</span><span class="format-row"><span>MOV</span><span>MP4</span><span>WebM</span><b>до 100 МБ</b></span></button>
+        <div class="file-error" id="file-error" role="alert" hidden></div>
+        <div id="selected-file" class="selected-file" hidden><span class="file-symbol"><i data-icon="film"></i></span><div><strong id="file-name"></strong><span id="file-meta"></span></div><button id="remove-file" class="icon-button" aria-label="Убрать видео"><i data-icon="x"></i></button></div>
+        <div id="analysis-actions" class="analysis-actions" hidden><button type="button" class="button button-primary button-wide" id="analyze-button" disabled><i data-icon="scan"></i><span>Проверить видео</span></button><p id="analysis-hint" class="muted-hint"></p></div>
+        <div id="processing" class="processing" role="status" aria-live="polite" hidden><div class="processing-row"><span class="spinner"></span><div><strong id="processing-title">Проверяем видео</strong><p id="processing-message">Ожидаем результат анализа…</p></div><button id="cancel-button" class="text-button">Отменить</button></div><div class="activity-track"><span></span></div></div>
+        <div id="analysis-result" class="analysis-result" role="status" aria-live="polite" hidden><span class="result-icon" id="result-icon"></span><div><h2 id="result-heading"></h2><p id="result-message"></p></div></div>
+        <button type="button" id="view-violations" class="button button-primary button-wide report-button" disabled hidden>Посмотреть нарушение<i data-icon="arrow-right"></i></button>
+        <div class="upload-footer"><i data-icon="shield"></i><p id="privacy-note">Сейчас файл остаётся в браузере. ИИ ещё не подключён.</p></div>
+      </div>
+      <p class="flow-note">Отчёт станет доступен, если проверка обнаружит нарушение.</p>
+      <aside id="demo-tools" class="demo-tools" hidden aria-label="Тестирование интерфейса"><span class="demo-tag">ТЕСТ ИНТЕРФЕЙСА</span><p>Учебные данные для проверки переходов. Загруженные видео не анализируются.</p><div class="demo-controls"><label class="visually-hidden" for="demo-scenario">Тестовый результат</label><select id="demo-scenario"><option value="violation">Найдены два нарушения · демо</option><option value="no_violation">Нарушений нет · демо</option><option value="error">Ошибка анализа · демо</option></select><button type="button" id="load-demo" class="button button-light">Загрузить учебный пример</button></div></aside>
+    </section>
+    <section id="report-view" class="report-view" aria-labelledby="report-heading" hidden>
+      <div class="report-toolbar"><a href="#upload" class="back-link"><i data-icon="arrow-left"></i>К загрузке видео</a><button type="button" id="download-pdf" class="button button-primary"><i data-icon="download"></i><span>Скачать PDF</span></button></div>
+      <div class="report-intro"><div><span class="eyebrow">02 / РЕЗУЛЬТАТ ПРОВЕРКИ</span><h1 id="report-heading" tabindex="-1">Обнаруженные нарушения</h1><p class="report-meta"><span id="report-file"></span><span class="meta-divider">·</span><time id="report-date"></time></p></div><span class="count-badge" id="report-count"></span></div>
+      <div class="demo-notice" id="report-demo-note" hidden><i data-icon="info"></i><p><b>Демонстрационный отчёт.</b> Показаны учебные схемы и примеры связи с источником. Это не результат анализа вашего видео.</p></div>
+      <p id="pdf-error" class="file-error" role="alert" hidden></p>
+      <div id="violation-list" class="violation-list"></div>
+      <div class="report-bottom"><div><i data-icon="file"></i><p><strong>Весь отчёт в одном файле</strong><span>Кадры, время, описание и основания каждого нарушения.</span></p></div><button type="button" id="download-pdf-bottom" class="button button-light"><i data-icon="download"></i><span>Скачать PDF</span></button></div>
+    </section>
+  </main>
+  <footer class="site-footer"><span>ForteLens <span class="footer-dot">·</span> ForteBank case</span><span>От записи — к проверяемому результату</span></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="frame-dialog" aria-labelledby="frame-title"><div class="dialog-header"><h2 id="frame-title">Кадр нарушения</h2><button type="button" id="close-frame" class="icon-button" aria-label="Закрыть кадр"><i data-icon="x"></i></button></div><img id="frame-image" alt=""><p id="frame-caption"></p></dialog>
+</body>
+</html>
