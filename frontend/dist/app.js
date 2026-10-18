@@ -3,6 +3,7 @@
   const $ = id => document.getElementById(id);
   const demoMode = new URLSearchParams(location.search).get('demo') === '1';
   const client = window.ForteLensAnalysis;
+  const clientReady = () => Boolean(client?.available) && (typeof client.isReady !== 'function' || client.isReady());
   const state = { source: null, file: null, phase: 'idle', result: null, error: '', controller: null, revision: 0, exporting: false, exportController: null };
   const icons = {
     upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
@@ -26,10 +27,10 @@
   function renderIcons(root = document) { root.querySelectorAll('[data-icon]').forEach(el => el.innerHTML = icon(el.dataset.icon)); }
   const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function timecode(value) {
-    const ticks = Math.round(value * 10), hours = Math.floor(ticks / 36000), minutes = Math.floor(ticks / 600) % 60, seconds = Math.floor(ticks / 10) % 60;
-    return `${hours ? String(hours).padStart(2, '0') + ':' : ''}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${ticks % 10}`;
+    const ticks = Math.round(Math.max(0, Number(value) || 0) * 1000), hours = Math.floor(ticks / 3600000), minutes = Math.floor(ticks / 60000) % 60, seconds = Math.floor(ticks / 1000) % 60;
+    return `${hours ? String(hours).padStart(2, '0') + ':' : ''}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ticks % 1000).padStart(3, '0')}`;
   }
-  const plural = n => n % 10 === 1 && n % 100 !== 11 ? 'нарушение' : n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'нарушения' : 'нарушений';
+  const plural = n => n % 10 === 1 && n % 100 !== 11 ? 'событие для проверки' : n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'события для проверки' : 'событий для проверки';
   const hasReport = () => state.phase === 'done' && state.result?.verdict === 'violation' && state.result.report.violations.length > 0;
   let toastTimer;
   function toast(message) { clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false; toastTimer = setTimeout(() => $('toast').hidden = true, 4200); }
@@ -76,9 +77,9 @@
     $('remove-file').disabled = busy;
     $('demo-scenario').disabled = busy;
     $('load-demo').disabled = busy;
-    $('analyze-button').disabled = !selected || busy || (state.source === 'file' && !client.available);
+    $('analyze-button').disabled = !selected || busy || (state.source === 'file' && !clientReady());
     $('analyze-button').querySelector('span').textContent = state.phase === 'error' ? 'Повторить проверку' : state.source === 'demo' ? 'Проверить учебный пример' : 'Проверить видео';
-    $('analysis-hint').textContent = state.source === 'demo' ? 'Демонстрация переходов. Модель не запускается.' : client.available ? 'Результат появится после завершения анализа.' : 'Видео выбрано. Проверка станет доступна после подключения ИИ.';
+    $('analysis-hint').textContent = state.source === 'demo' ? 'Демонстрация интерфейса. Модель не запускается.' : !client?.available ? 'Локальный API недоступен.' : !clientReady() ? 'Обновите страницу локального сайта.' : 'Результат появится после завершения локального анализа.';
     $('analysis-result').hidden = !['done', 'error'].includes(state.phase);
     // Hidden and disabled are intentional: both UI and routing use the same guard.
     $('view-violations').hidden = !ready;
@@ -97,8 +98,8 @@
       $('result-icon').innerHTML = icon(ready ? 'alert' : 'check');
       const prefix = state.source === 'demo' ? 'Демо: ' : '';
       const count = state.result.report.violations.length;
-      $('result-heading').textContent = ready ? `${prefix}найдено ${count} ${plural(count)}` : `${prefix}нарушений не обнаружено`;
-      $('result-message').textContent = ready ? 'Откройте отчёт: кадры, время, описание и нормативные основания.' : 'Проверка завершена без обнаруженных событий. Отчёт о нарушениях недоступен.';
+      $('result-heading').textContent = ready ? `${prefix}Обнаружены признаки возможных нарушений` : `${prefix}Нарушение не обнаружено`;
+      $('result-message').textContent = ready ? `${count} ${plural(count)}. Откройте кадры, время, описание и статус нормативного основания. Выводы требуют проверки специалистом.` : 'В рамках настроенных проверок признаки нарушения не найдены. Модель может пропустить событие; результат требует проверки специалистом.';
     }
   }
   function selectFile(file) {
@@ -106,13 +107,13 @@
     // Any newly selected file invalidates an earlier report, including invalid input.
     resetSelection();
     let error = '';
-    if (!/\.(mov|mp4|webm)$/i.test(file.name)) error = 'Выберите видео MOV, MP4 или WebM.';
+    if (!/\.mov$/i.test(file.name)) error = 'Выберите видео MOV.';
     else if (file.size === 0) error = 'Файл пуст. Выберите другую видеозапись.';
-    else if (file.size > 100 * 1024 * 1024) error = 'Размер файла больше 100 МБ. Выберите запись меньшего размера.';
+    else if (file.size >= 64 * 1024 * 1024) error = 'Файл должен быть меньше 64 МиБ с учётом служебных данных загрузки.';
     if (error) { $('file-error').textContent = error; $('file-error').hidden = false; return; }
     state.source = 'file'; state.file = file; state.phase = 'ready';
     renderUpload();
-    if (client.available) $('analyze-button').focus();
+    if (clientReady()) $('analyze-button').focus();
   }
   function selectDemo() {
     if (!demoMode || state.phase === 'processing') return;
@@ -135,22 +136,45 @@
   }
   function normalizeResult(raw, source, name) {
     if (!raw || !['violation', 'no_violation'].includes(raw.verdict) || !Array.isArray(raw.violations)) throw new Error('Сервис вернул неполный результат. Повторите проверку.');
-    if ((raw.verdict === 'violation') !== (raw.violations.length > 0)) throw new Error('Результат и список нарушений не совпадают. Повторите проверку.');
+    if ((raw.verdict === 'violation') !== (raw.violations.length > 0)) throw new Error('Вердикт и список событий не совпадают. Повторите проверку.');
+    const isDemo = source === 'demo' && demoMode;
+    if (source === 'demo' && !isDemo) throw new Error('Демонстрационный режим не включён.');
     const text = (value, field) => { if (typeof value !== 'string' || !value.trim()) throw new Error(`В результате отсутствует ${field}.`); return value.trim(); };
     const violations = raw.violations.map((v, index) => {
       if (!v || !Number.isFinite(v.timecode_sec) || v.timecode_sec < 0 || !Array.isArray(v.frames) || v.frames.length < 1 || v.frames.length > 3) throw new Error('В результате отсутствуют корректные кадры или время события.');
+      const status = v.verification_status;
+      if (status != null && !['normative_source_verified', 'needs_regulation_review'].includes(status)) throw new Error('В результате указан неизвестный статус нормативного основания.');
+      let legal = null;
+      if (v.legal != null) {
+        legal = {
+          act: text(v.legal.act, 'нормативный акт'),
+          paragraph: text(v.legal.paragraph, 'пункт нормативного акта'),
+          url: safeLink(text(v.legal.url, 'ссылка на источник')),
+          context: typeof v.legal.context === 'string' ? v.legal.context.trim() : ''
+        };
+      }
+      if (status === 'normative_source_verified' && !legal) throw new Error('Проверенный нормативный источник отсутствует в результате.');
+      // Source verification concerns the citation only. Every event still needs human review.
+      const verificationStatus = status || (isDemo && legal ? 'normative_source_verified' : 'needs_regulation_review');
       return {
         id: String(v.id || `event-${index + 1}`),
-        title: text(v.title, 'название нарушения'), timecode_sec: v.timecode_sec,
-        description: text(v.description, 'описание нарушения'),
-        frames: v.frames.map((frame, frameIndex) => ({ src: safeFrame(frame?.src), caption: typeof frame.caption === 'string' && frame.caption.trim() ? frame.caption : `Кадр ${frameIndex + 1}` })),
-        legal: { act: text(v.legal?.act, 'нормативный акт'), paragraph: text(v.legal?.paragraph, 'точный пункт'), url: safeLink(text(v.legal?.url, 'ссылка на источник')), context: typeof v.legal?.context === 'string' ? v.legal.context : '' }
+        title: text(v.title, 'название события'), timecode_sec: v.timecode_sec,
+        description: text(v.description, 'описание наблюдаемого события'),
+        frames: v.frames.map((frame, frameIndex) => ({
+          src: safeFrame(frame?.src),
+          caption: typeof frame.caption === 'string' && frame.caption.trim() ? frame.caption.trim() : `Кадр ${frameIndex + 1}`,
+          ...(Number.isFinite(frame?.timestamp_sec) && frame.timestamp_sec >= 0 ? { timestamp_sec: frame.timestamp_sec } : {})
+        })),
+        legal,
+        verification_status: verificationStatus,
+        regulatory_note: typeof v.regulatory_note === 'string' ? v.regulatory_note.trim() : '',
+        requires_human_review: true
       };
     });
-    return { verdict: raw.verdict, report: { fileName: name, createdAt: new Date().toISOString(), isDemo: source === 'demo', violations } };
+    return { verdict: raw.verdict, report: { fileName: name, createdAt: new Date().toISOString(), isDemo, violations } };
   }
   async function analyze() {
-    if (!state.source || state.phase === 'processing' || (state.source === 'file' && !client.available)) return;
+    if (!state.source || state.phase === 'processing' || (state.source === 'file' && !clientReady())) return;
     invalidate();
     const revision = state.revision, source = state.source;
     const name = source === 'demo' ? window.ForteLensDemo.fileName : state.file.name;
@@ -177,16 +201,26 @@
       }
     }
   }
+  function renderLegal(event) {
+    const verified = event.verification_status === 'normative_source_verified';
+    const status = verified ? 'Источник проверен' : 'Нужна проверка регламента';
+    const context = event.legal?.context || '';
+    const note = event.regulatory_note || (context ? '' : verified
+      ? 'Проверена ссылка на источник. Его применимость к наблюдаемому событию должен оценить специалист.'
+      : 'Нормативное основание для этого наблюдения не подтверждено. Требуется проверка действующих правил и внутренних документов банка.');
+    const details = event.legal ? `<dl><dt>Акт</dt><dd>${escape(event.legal.act)}</dd><dt>Пункт</dt><dd><strong>${escape(event.legal.paragraph)}</strong></dd><dt>Источник</dt><dd><a class="source-link" href="${escape(event.legal.url)}" target="_blank" rel="noopener noreferrer">Открыть нормативный акт${icon('external')}</a></dd></dl>${context ? `<p class="legal-context">${escape(context)}</p>` : ''}` : '';
+    return `<section class="legal" aria-label="Проверка нормативного основания"><h3>${icon('book')}${status}</h3>${details}${note && note !== context ? `<p class="legal-context">${escape(note)}</p>` : ''}</section>`;
+  }
   function renderReport() {
     if (!hasReport()) return;
     const report = state.result.report;
-    $('report-heading').textContent = report.isDemo ? 'Нарушения · учебный пример' : 'Обнаруженные нарушения';
+    $('report-heading').textContent = report.isDemo ? 'События в учебном примере' : 'События для проверки';
     $('report-file').textContent = report.fileName;
     $('report-date').dateTime = report.createdAt;
     $('report-date').textContent = new Date(report.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     $('report-count').textContent = `${report.violations.length} ${plural(report.violations.length)}`;
     $('report-demo-note').hidden = !report.isDemo;
-    $('violation-list').innerHTML = report.violations.map((v, i) => `<article class="violation-card" aria-labelledby="violation-${i}"><header class="violation-header"><h2 id="violation-${i}">Нарушение ${String(i + 1).padStart(2, '0')}</h2><span class="event-status">${report.isDemo ? 'Учебный пример' : 'Обнаружено при анализе'}</span></header><div class="frames">${v.frames.map((frame, f) => `<figure class="frame"><button type="button" class="frame-button" data-event="${i}" data-frame="${f}" aria-label="Увеличить кадр ${f + 1} нарушения ${i + 1}"><img src="${escape(frame.src)}" alt="${escape(frame.caption)}"><span class="frame-zoom">${icon('expand')}</span></button><figcaption>${escape(frame.caption)}</figcaption></figure>`).join('')}</div><div class="violation-body"><div class="time-label">${icon('clock')}Время на видео<strong>${timecode(v.timecode_sec)}</strong></div><div class="description"><h3>${escape(v.title)}</h3><p>${escape(v.description)}</p></div><section class="legal" aria-label="Нормативное основание"><h3>${icon('book')}Основание</h3><dl><dt>Акт</dt><dd>${escape(v.legal.act)}</dd><dt>Точный пункт</dt><dd><strong>${escape(v.legal.paragraph)}</strong></dd><dt>Источник</dt><dd><a class="source-link" href="${escape(v.legal.url)}" target="_blank" rel="noopener noreferrer">Открыть нормативный акт${icon('external')}</a></dd></dl>${v.legal.context ? `<p class="legal-context">${escape(v.legal.context)}</p>` : ''}</section></div></article>`).join('');
+    $('violation-list').innerHTML = report.violations.map((v, i) => `<article class="violation-card" aria-labelledby="violation-${i}"><header class="violation-header"><h2 id="violation-${i}">Событие ${String(i + 1).padStart(2, '0')}</h2><span class="event-status">${report.isDemo ? 'Учебный пример' : 'Требует проверки специалистом'}</span></header><div class="frames">${v.frames.map((frame, f) => `<figure class="frame"><button type="button" class="frame-button" data-event="${i}" data-frame="${f}" aria-label="Увеличить кадр ${f + 1} события ${i + 1}"><img src="${escape(frame.src)}" alt="${escape(frame.caption)}"><span class="frame-zoom">${icon('expand')}</span></button><figcaption>${escape(frame.caption)}</figcaption></figure>`).join('')}</div><div class="violation-body"><div class="time-label">${icon('clock')}Время на видео<strong>${timecode(v.timecode_sec)}</strong></div><div class="description"><h3>${escape(v.title)}</h3><p>${escape(v.description)}</p></div>${renderLegal(v)}</div></article>`).join('');
     $('violation-list').querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.alt = 'Кадр не загрузился. PDF недоступен до восстановления изображения.'; }));
   }
   function route(focus = true) {
@@ -198,7 +232,7 @@
     }
     $('upload-view').hidden = showReport;
     $('report-view').hidden = !showReport;
-    document.title = `ForteLens · ${showReport ? 'Отчёт о нарушениях' : 'Загрузка видео'}`;
+    document.title = `ForteLens — ${showReport ? 'События для проверки' : 'Загрузка видео'}`;
     if (showReport) renderReport();
     if (focus) $(showReport ? 'report-heading' : 'upload-heading').focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -235,7 +269,7 @@
   $('load-demo').addEventListener('click', selectDemo);
   $('demo-scenario').addEventListener('change', () => { if (state.source === 'demo') selectDemo(); });
   $('analyze-button').addEventListener('click', analyze);
-  $('cancel-button').addEventListener('click', () => { invalidate(); state.phase = state.source ? 'ready' : 'idle'; renderUpload(); $('analyze-button').focus(); toast('Проверка отменена.'); });
+  $('cancel-button').addEventListener('click', () => { invalidate(); state.phase = state.source ? 'ready' : 'idle'; renderUpload(); $('analyze-button').focus(); toast(state.source === 'demo' ? 'Просмотр примера прекращён.' : 'Ожидание прекращено. Задание на сервере может продолжаться.'); });
   $('view-violations').addEventListener('click', () => { if (hasReport()) location.hash = 'report'; });
   $('download-pdf').addEventListener('click', downloadPDF);
   $('download-pdf-bottom').addEventListener('click', downloadPDF);
@@ -245,7 +279,7 @@
     const index = Number(button.dataset.event), frameIndex = Number(button.dataset.frame);
     const violation = state.result.report.violations[index], frame = violation?.frames[frameIndex];
     if (!frame) return;
-    $('frame-title').textContent = `Нарушение ${index + 1} · ${timecode(violation.timecode_sec)}`;
+    $('frame-title').textContent = `Событие ${index + 1} — ${timecode(violation.timecode_sec)}`;
     $('frame-image').src = frame.src; $('frame-image').alt = frame.caption;
     $('frame-caption').textContent = frame.caption;
     $('frame-dialog').showModal();
@@ -263,6 +297,9 @@
   window.addEventListener('hashchange', () => route());
   $('demo-tools').hidden = !demoMode;
   if (demoMode) { $('mode-badge').classList.add('demo'); $('mode-badge').innerHTML = '<span></span>Демонстрация'; }
-  if (client.available) $('privacy-note').textContent = 'Видео будет передано на сервер для анализа после нажатия «Проверить видео».';
+  if (client?.available) $('privacy-note').textContent = 'Видео передаётся только в локальный сервис после запуска анализа. Модель обрабатывает его на ноутбуке в вашей локальной сети; внешние AI-сервисы не используются.';
+  window.addEventListener('fortelens:credentials-changed', renderUpload);
+  if (demoMode) $('mode-badge').classList.remove('local');
+  else if (client?.available) $('mode-badge').innerHTML = '<span></span>Локальный анализ';
   renderIcons(); renderUpload(); route(false);
 })();

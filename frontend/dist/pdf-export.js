@@ -5,9 +5,9 @@
   const baseURL = script && script.src ? new URL('.', script.src).href : (root.location ? root.location.href : 'http://localhost/');
   const text = value => String(value == null ? '' : value).replace(/\r\n?/g, '\n').replace(/[\u2010-\u2015]/g, '-').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/\t/g, '    ');
   const time = value => {
-    const ticks = Math.round(Math.max(0, Number(value) || 0) * 10);
-    const hours = Math.floor(ticks / 36000), minutes = Math.floor(ticks / 600) % 60, seconds = Math.floor(ticks / 10) % 60;
-    return `${hours ? String(hours).padStart(2, '0') + ':' : ''}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${ticks % 10}`;
+    const ticks = Math.round(Math.max(0, Number(value) || 0) * 1000);
+    const hours = Math.floor(ticks / 3600000), minutes = Math.floor(ticks / 60000) % 60, seconds = Math.floor(ticks / 1000) % 60;
+    return `${hours ? String(hours).padStart(2, '0') + ':' : ''}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ticks % 1000).padStart(3, '0')}`;
   };
   function friendly(message, cause) {
     const error = new Error(message);
@@ -18,6 +18,14 @@
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
     try {
+      // Evidence already arrives in memory. Decode it directly so PDF export does
+      // not need a network connection or a connect-src exception for data URLs.
+      if (typeof url === 'string' && /^data:/i.test(url)) {
+        const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\r\n]+)$/i.exec(url);
+        if (!match) throw new Error('Invalid inline image');
+        const decoded = root.atob(match[2].replace(/[\r\n]/g, ''));
+        return { bytes: Uint8Array.from(decoded, character => character.charCodeAt(0)), type: match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase() };
+      }
       const response = await fetch(url, { signal: controller ? controller.signal : undefined, credentials: 'same-origin' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return { bytes: new Uint8Array(await response.arrayBuffer()), type: response.headers.get('content-type') || '' };
@@ -157,7 +165,7 @@
     paragraph(report.isDemo ? 'Пример отчёта о проверке' : 'Отчёт о проверке видео', { bold: true, size: 23, leading: 30, after: 8 });
     paragraph(`Файл: ${report.fileName || 'Название не указано'}`, { size: 9.5, after: 3 });
     const date = new Date(report.createdAt || Date.now());
-    paragraph(`Дата: ${Number.isNaN(date.getTime()) ? text(report.createdAt) : date.toLocaleString('ru-RU')}  |  Событий: ${report.violations.length}`, { size: 9.5, color: colors.muted, after: 12 });
+    paragraph(`Дата: ${Number.isNaN(date.getTime()) ? text(report.createdAt) : date.toLocaleString('ru-RU')}  |  Событий для проверки: ${report.violations.length}`, { size: 9.5, color: colors.muted, after: 12 });
     if (report.isDemo) paragraph('ДЕМОНСТРАЦИЯ. События и изображения условные. Этот отчёт не является результатом ИИ-анализа загруженного видео и не подтверждает нарушение.', { size: 9, color: colors.accent, after: 18 });
     else paragraph('Отчёт содержит признаки возможных нарушений. Кадры и применимость нормативного основания требуют проверки человеком.', { size: 9, color: colors.muted, after: 18 });
     for (let index = 0; index < report.violations.length; index++) {
@@ -172,19 +180,29 @@
       paragraph(time(item.timecode_sec), { bold: true, size: 13, after: 12 });
       heading('Описание наблюдения');
       paragraph(item.description || 'Описание не указано.');
-      heading('Нормативное основание');
-      const legal = item.legal || {};
-      paragraph(legal.act || 'Нормативный акт не указан.', { bold: true, after: 5 });
-      const clause = text(legal.paragraph || '');
-      paragraph(/^(пункт|п\.)/i.test(clause) ? clause : `Пункт: ${clause || 'не указан'}`, { after: 6 });
-      if (legal.context) paragraph(legal.context, { size: 10 });
-      if (legal.url) {
-        let url;
-        try { url = new URL(legal.url); } catch (error) { throw friendly(`В событии ${index + 1} указана некорректная ссылка на нормативный акт.`, error); }
-        if (!['http:', 'https:'].includes(url.protocol)) throw friendly(`В событии ${index + 1} ссылка на нормативный акт должна начинаться с http или https.`);
-        heading('Источник');
-        paragraph(url.href, { size: 8.5, color: colors.accent, url: url.href });
-      } else paragraph('Ссылка на источник не указана.', { size: 9, color: colors.muted });
+      const legal = item.legal;
+      const status = item.verification_status || (report.isDemo && legal ? 'normative_source_verified' : 'needs_regulation_review');
+      if (!['normative_source_verified', 'needs_regulation_review'].includes(status)) throw friendly(`В событии ${index + 1} указан неизвестный статус нормативного основания.`);
+      const sourceVerified = status === 'normative_source_verified';
+      if (sourceVerified && (!legal || !legal.act || !legal.paragraph || !legal.url)) throw friendly(`Для события ${index + 1} отсутствует полный проверенный нормативный источник.`);
+      heading(sourceVerified ? 'Источник проверен' : 'Нужна проверка регламента');
+      if (legal) {
+        paragraph(legal.act || 'Нормативный акт не указан.', { bold: true, after: 5 });
+        const clause = text(legal.paragraph || '');
+        paragraph(/^(пункт|п\.)/i.test(clause) ? clause : `Пункт: ${clause || 'не указан'}`, { after: 6 });
+        if (legal.context) paragraph(legal.context, { size: 10 });
+        if (legal.url) {
+          let url;
+          try { url = new URL(legal.url); } catch (error) { throw friendly(`В событии ${index + 1} указана некорректная ссылка на нормативный акт.`, error); }
+          if (!['http:', 'https:'].includes(url.protocol)) throw friendly(`В событии ${index + 1} ссылка на нормативный акт должна начинаться с http или https.`);
+          heading('Источник');
+          paragraph(url.href, { size: 8.5, color: colors.accent, url: url.href });
+        } else paragraph('Ссылка на источник не указана.', { size: 9, color: colors.muted });
+      }
+      paragraph(item.regulatory_note || (sourceVerified
+        ? 'Проверена ссылка на источник. Применимость нормы к этому событию требует проверки специалистом.'
+        : 'Нормативное основание для этого наблюдения не подтверждено. Требуется проверить действующие правила и внутренние документы банка.'), { size: 9, color: colors.muted });
+      paragraph('Наблюдение является признаком возможного нарушения. Оно не является окончательным юридическим или дисциплинарным заключением.', { size: 9, color: colors.muted });
       y -= 10;
     }
     const pages = doc.getPages();
