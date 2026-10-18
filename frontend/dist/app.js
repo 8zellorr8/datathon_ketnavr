@@ -107,7 +107,7 @@
     // Any newly selected file invalidates an earlier report, including invalid input.
     resetSelection();
     let error = '';
-    if (!/\.mov$/i.test(file.name)) error = 'Выберите видео MOV.';
+    if (!/\.(mov|mp4)$/i.test(file.name)) error = 'Выберите видео MOV или MP4.';
     else if (file.size === 0) error = 'Файл пуст. Выберите другую видеозапись.';
     else if (file.size >= 64 * 1024 * 1024) error = 'Файл должен быть меньше 64 МиБ с учётом служебных данных загрузки.';
     if (error) { $('file-error').textContent = error; $('file-error').hidden = false; return; }

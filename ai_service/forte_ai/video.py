@@ -11,6 +11,10 @@ import subprocess
 import time
 
 
+SUPPORTED_VIDEO_SUFFIXES = frozenset({'.mov', '.mp4'})
+# FFmpeg's mov demuxer handles both QuickTime MOV and MP4 containers.
+
+
 class VideoError(RuntimeError):
     pass
 
@@ -45,8 +49,8 @@ def probe_video(video_path: str | Path, *, deadline: float | None = None) -> dic
     video = Path(video_path).expanduser().resolve()
     if not video.is_file():
         raise VideoError(f'Video not found: {video}')
-    if video.suffix.lower() != '.mov':
-        raise VideoError('The case requires a .mov video')
+    if video.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
+        raise VideoError('Use a .mov or .mp4 video')
     try:
         result = subprocess.run(
             [ffmpeg_executable(), '-hide_banner', '-nostdin', '-protocol_whitelist', 'file,pipe',

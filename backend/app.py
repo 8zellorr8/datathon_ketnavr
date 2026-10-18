@@ -18,7 +18,7 @@ from starlette.requests import ClientDisconnect
 
 from ai_service.forte_ai.server import (
     FRONTEND_ASSETS, JOB_TIMEOUT_SECONDS, MAX_STATIC_BYTES, MAX_UPLOAD_BYTES,
-    JobManager, UploadError, extract_mov,
+    JobManager, UploadError, extract_video_upload,
 )
 
 from .analyzer import LocalAIAnalyzer
@@ -36,7 +36,7 @@ _CSP = ("default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'
         "connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'")
 _UPLOAD_SCHEMA = {"requestBody": {"required": True, "content": {"multipart/form-data": {
     "schema": {"type": "object", "required": ["file"], "properties": {
-        "file": {"type": "string", "format": "binary", "description": "MOV; multipart body up to 64 MiB"}
+        "file": {"type": "string", "format": "binary", "description": "MOV or MP4; multipart body up to 64 MiB"}
     }}
 }}}}
 
@@ -94,13 +94,13 @@ class AnalysisController:
                 body.extend(chunk)
             if len(body) != length:
                 raise APIError(400, "incomplete_upload", "The request body is incomplete.")
-            payload = await run_in_threadpool(extract_mov, bytes(body), request.headers.get("content-type", ""))
+            payload, suffix = await run_in_threadpool(extract_video_upload, bytes(body), request.headers.get("content-type", ""))
             if time.monotonic() >= deadline:
                 raise APIError(408, "upload_timeout", "Upload exceeded the analysis deadline.")
             job_id = uuid.uuid4().hex
             # The storage task owns the reservation and file even if the HTTP
             # request is cancelled; its finally block completes the handoff/cleanup.
-            storage = asyncio.create_task(asyncio.to_thread(self._store_reserved, manager, payload, deadline, job_id))
+            storage = asyncio.create_task(asyncio.to_thread(self._store_reserved, manager, payload, deadline, job_id, suffix))
             reserved = False
             try:
                 await asyncio.shield(storage)
@@ -123,13 +123,14 @@ class AnalysisController:
                 manager.release()
 
     @staticmethod
-    def _store_reserved(manager: JobManager, payload: bytes, deadline: float, job_id: str) -> None:
+    def _store_reserved(manager: JobManager, payload: bytes, deadline: float, job_id: str,
+                        suffix: str = ".mov") -> None:
         reserved = True
         upload_path = None
         try:
             if time.monotonic() >= deadline:
                 raise APIError(408, "upload_timeout", "Upload exceeded the analysis deadline.")
-            upload_path = manager.runtime_dir / (job_id + ".mov")
+            upload_path = manager.runtime_dir / (job_id + suffix)
             with upload_path.open("xb") as target:
                 target.write(payload)
             # submit_reserved always consumes the reservation, including failure.

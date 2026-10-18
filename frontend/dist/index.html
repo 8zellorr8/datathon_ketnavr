@@ -26,8 +26,8 @@
     <section id="upload-view" class="upload-view" aria-labelledby="upload-heading">
       <div class="intro"><span class="eyebrow">01 / ЗАГРУЗКА ВИДЕО</span><h1 id="upload-heading" tabindex="-1">Начните с видео.</h1><p>Загрузите запись кассовой операции для проверки.</p></div>
       <div class="upload-card">
-        <input type="file" id="video-input" accept=".mov,video/quicktime" tabindex="-1" class="visually-hidden" aria-label="Видеофайл">
-        <button type="button" class="dropzone" id="dropzone" aria-label="Выбрать видео MOV, меньше 64 мебибайт"><span class="upload-art"><i data-icon="upload"></i><span class="art-dot"></span></span><strong>Перетащите видео сюда</strong><span class="dropzone-subtitle">или нажмите, чтобы выбрать файл</span><span class="format-row"><span>MOV</span><b>меньше 64 МиБ</b></span></button>
+        <input type="file" id="video-input" accept=".mov,.mp4,video/quicktime,video/mp4" tabindex="-1" class="visually-hidden" aria-label="Видеофайл">
+        <button type="button" class="dropzone" id="dropzone" aria-label="Выбрать видео MOV или MP4, меньше 64 мебибайт"><span class="upload-art"><i data-icon="upload"></i><span class="art-dot"></span></span><strong>Перетащите видео сюда</strong><span class="dropzone-subtitle">или нажмите, чтобы выбрать файл</span><span class="format-row"><span>MOV / MP4</span><b>меньше 64 МиБ</b></span></button>
         <div class="file-error" id="file-error" role="alert" hidden></div>
         <div id="selected-file" class="selected-file" hidden><span class="file-symbol"><i data-icon="film"></i></span><div><strong id="file-name"></strong><span id="file-meta"></span></div><button id="remove-file" class="icon-button" aria-label="Убрать видео"><i data-icon="x"></i></button></div>
         <div id="analysis-actions" class="analysis-actions" hidden><button type="button" class="button button-primary button-wide" id="analyze-button" disabled><i data-icon="scan"></i><span>Проверить видео</span></button><p id="analysis-hint" class="muted-hint"></p></div>

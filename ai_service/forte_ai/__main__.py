@@ -21,7 +21,7 @@ def main(argv=None) -> int:
     prepare.add_argument('--workbook', required=True)
     prepare.add_argument('--videos-dir', required=True)
     prepare.add_argument('--output', default='data')
-    analyze = commands.add_parser('analyze', help='Analyze one new local .mov video')
+    analyze = commands.add_parser('analyze', help='Analyze one new local .mov or .mp4 video')
     analyze.add_argument('--video', required=True)
     analyze.add_argument('--config', default='config/local.json')
     analyze.add_argument('--output', default='results/single.json')

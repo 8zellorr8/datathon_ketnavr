@@ -32,6 +32,7 @@ from urllib.parse import urlsplit
 
 from .pipeline import AnalysisError, AnalysisErrorCode
 from .local_vlm import LocalVLMOutOfMemoryError, LocalVLMOutputError, LocalVLMTimeoutError
+from .video import SUPPORTED_VIDEO_SUFFIXES
 
 
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
@@ -317,7 +318,7 @@ class _JobManager:
         self.executor.shutdown(wait=False, cancel_futures=True)
 
 
-def _extract_mov(body: bytes, content_type: str) -> bytes:
+def _extract_video_upload(body: bytes, content_type: str) -> tuple[bytes, str]:
     if "\r" in content_type or "\n" in content_type:
         raise _RequestError(400, "invalid_multipart", "Invalid multipart Content-Type.")
     header = Message()
@@ -345,17 +346,24 @@ def _extract_mov(body: bytes, content_type: str) -> bytes:
     if len(files) != 1:
         raise _RequestError(400, "invalid_file_field", "Provide exactly one file field named 'file'.")
     filename = files[0].get_filename()
-    if not filename or not filename.casefold().endswith(".mov"):
-        raise _RequestError(400, "invalid_extension", "The uploaded file must have a .mov extension.")
+    suffix = Path(filename).suffix.casefold() if filename else ""
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        raise _RequestError(400, "invalid_extension", "The uploaded file must have a .mov or .mp4 extension.")
     payload = files[0].get_payload(decode=True)
     if not isinstance(payload, bytes) or not payload:
         raise _RequestError(400, "empty_file", "The uploaded video is empty.")
-    return payload
+    return payload, suffix
+
+
+def _extract_mov(body: bytes, content_type: str) -> bytes:
+    """Compatibility wrapper for callers expecting only the uploaded bytes."""
+    return _extract_video_upload(body, content_type)[0]
 
 
 # Reuse the existing worker, upload contract and safe upload errors from other
 # HTTP transports. These aliases preserve the original AI service integrations.
 JobManager = _JobManager
+extract_video_upload = _extract_video_upload
 extract_mov = _extract_mov
 UploadError = _RequestError
 FRONTEND_ASSETS = _FRONTEND_ASSETS
@@ -612,11 +620,11 @@ def _handler_factory(manager: _JobManager, api_key: str):
                     chunks.append(chunk)
                     remaining -= len(chunk)
                 body = b"".join(chunks)
-                payload = _extract_mov(body, self.headers.get("Content-Type", ""))
+                payload, suffix = _extract_video_upload(body, self.headers.get("Content-Type", ""))
                 if time.monotonic() >= deadline:
                     raise _RequestError(408, "upload_timeout", "Upload exceeded the analysis deadline.")
                 job_id = uuid.uuid4().hex
-                upload_path = manager.runtime_dir / f"{job_id}.mov"
+                upload_path = manager.runtime_dir / f"{job_id}{suffix}"
                 with upload_path.open("xb") as stream:
                     stream.write(payload)
                 # submit_reserved always consumes the reservation, even if the

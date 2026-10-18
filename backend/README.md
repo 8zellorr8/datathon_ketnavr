@@ -47,7 +47,7 @@ $env:FORTE_API_KEY = & .\.venv\Scripts\python.exe -c "import secrets; print(secr
 
 | Метод и путь | Назначение |
 | --- | --- |
-| `POST /api/v1/analyze` | Multipart, поле `file`, MOV; ответ 202 `{job_id, status: "processing"}` |
+| `POST /api/v1/analyze` | Multipart, поле `file`, MOV или MP4; ответ 202 `{job_id, status: "processing"}` |
 | `GET /api/v1/jobs/{job_id}` | Статус `processing`, `done` или `failed` |
 | `GET /api/v1/regulations` | Все записи нормативного справочника |
 | `GET /api/v1/regulations/{rule_id}` | Основание и условия для конкретного кода |

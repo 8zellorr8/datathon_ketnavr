@@ -11,8 +11,8 @@
   const messages = Object.freeze({
     unauthorized: 'Сессия завершилась. Обнови страницу локального сайта и повтори запрос.',
     queue_full: 'Сервис уже обрабатывает видео, очередь заполнена. Дождись завершения и попробуй снова.',
-    upload_too_large: 'Размер запроса превышает 64 МиБ. Выбери MOV немного меньше 64 МиБ: служебные поля загрузки тоже занимают место.',
-    invalid_extension: 'Для анализа нужен файл с расширением .mov.',
+    upload_too_large: 'Размер запроса превышает 64 МиБ. Выбери MOV или MP4 немного меньше 64 МиБ: служебные поля загрузки тоже занимают место.',
+    invalid_extension: 'Для анализа нужен файл с расширением .mov или .mp4.',
     empty_file: 'Видео пустое. Выбери другой файл.',
     empty_upload: 'Не удалось передать видео. Выбери файл и повтори загрузку.',
     incomplete_upload: 'Видео передалось не полностью. Проверь соединение с локальным сервисом и повтори загрузку.',
@@ -126,7 +126,7 @@
   }
   async function analyze(file, { signal, onStatus } = {}) {
     if (signal?.aborted) throw new DOMException('Ожидание прекращено.', 'AbortError');
-    if (!file || typeof file.name !== 'string' || !/\.mov$/i.test(file.name)) throw failure('invalid_extension');
+    if (!file || typeof file.name !== 'string' || !/\.(mov|mp4)$/i.test(file.name)) throw failure('invalid_extension');
     if (!Number.isFinite(file.size) || file.size <= 0) throw failure('empty_file');
     if (file.size >= MAX_FILE_BYTES) throw failure('upload_too_large');
     if (!isReady()) throw failure('unauthorized');
