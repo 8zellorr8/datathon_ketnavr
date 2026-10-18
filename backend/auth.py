@@ -20,12 +20,37 @@ _key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 class SessionAuthenticator:
     cookie_name = "fortelens_session"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, public_origin: str | None = None):
         if not isinstance(api_key, str) or len(api_key) < 16:
             raise ValueError("API key must contain at least 16 characters")
         self._api_key = api_key.encode("utf-8")
         self._secret = secrets.token_bytes(32)
         self._jobs: dict[str, tuple[str, float]] = {}
+        self._public_origin = None
+        self._public_host = None
+        if public_origin:
+            try:
+                parsed = urlsplit(public_origin)
+                # A single exact HTTPS origin; no proxy headers or wildcards.
+                valid = (parsed.scheme == "https" and parsed.hostname
+                         and parsed.netloc == parsed.netloc.lower()
+                         and not parsed.username and not parsed.password
+                         and not parsed.path and not parsed.query and not parsed.fragment
+                         and "?" not in public_origin and "#" not in public_origin
+                         and re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]{1,5})?", parsed.netloc)
+                         and all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+                                 for label in parsed.hostname.split("."))
+                         and (parsed.port is None or 1 <= parsed.port <= 65535))
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError("FORTE_PUBLIC_ORIGIN must be one exact HTTPS origin without a path")
+            self._public_origin = public_origin
+            self._public_host = parsed.netloc
+
+    def public_request(self, request: Request) -> bool:
+        return bool(self._public_host and len(request.headers.getlist("host")) == 1
+                    and request.headers.get("host") == self._public_host)
 
     def _session_id(self, request: Request) -> str | None:
         cookie = request.cookies.get(self.cookie_name, "")
@@ -59,9 +84,15 @@ class SessionAuthenticator:
         except (ValueError, TypeError):
             valid_host = False
         origin = request.headers.get("origin")
-        valid_origin = origin is None or origin == "http://" + host
+        public_request = self.public_request(request)
+        if public_request:
+            valid_host = True
+        expected_origin = self._public_origin if public_request else "http://" + host
+        valid_origin = origin is None or origin == expected_origin
         if request.method == "POST":
-            valid_origin = origin == "http://" + host
+            valid_origin = origin == expected_origin
+        if len(request.headers.getlist("host")) != 1 or len(request.headers.getlist("origin")) > 1:
+            valid_host = False
         same_site = request.headers.get("sec-fetch-site", "same-origin") not in ("cross-site", "same-site")
         session = self._session_id(request)
         if not (valid_host and valid_origin and same_site and session):

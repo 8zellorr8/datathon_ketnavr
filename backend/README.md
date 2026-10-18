@@ -57,6 +57,22 @@ $env:FORTE_API_KEY = & .\.venv\Scripts\python.exe -c "import secrets; print(secr
 Origin. Доступ к результатам ограничен сессией загрузившей их вкладки/браузера;
 API-ключ предоставляет служебный доступ к результатам.
 
+### Публичный HTTPS-адрес
+
+При публикации через туннель, направленный на порт 8001, перед запуском задайте
+единственный разрешённый HTTPS origin без завершающего слеша:
+
+```powershell
+$env:FORTE_PUBLIC_ORIGIN = "https://your-tunnel.example"
+.\ai_service\Start-LAN.cmd --offline --port 8001
+```
+
+После изменения переменной перезапустите сервер. Публичный браузер получает
+Secure HttpOnly-cookie; загрузка разрешена только с точно совпадающим Origin.
+Программный API по-прежнему требует `X-API-Key`. Для поля API base URL указывайте
+origin, например `https://your-tunnel.example`; путь загрузки — `/api/v1/analyze`.
+Туннель должен оставаться запущенным, а ноутбук — включённым и подключённым к сети.
+
 Пример в PowerShell после ручного запуска:
 
 ```powershell

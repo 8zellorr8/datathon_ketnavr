@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import time
 import uuid
@@ -170,7 +171,7 @@ def create_application(
     configuration = dict(config)
     configuration.setdefault("runtime_dir", str(ROOT / "ai_service/data/runtime"))
     frontend_root = Path(configuration.get("frontend_dir", ROOT / "frontend/dist")).resolve()
-    auth = SessionAuthenticator(api_key)
+    auth = SessionAuthenticator(api_key, public_origin=os.environ.get("FORTE_PUBLIC_ORIGIN"))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -232,7 +233,7 @@ def create_application(
         response.headers["Content-Security-Policy"] = _CSP
         if content is not None:
             response.set_cookie(auth.cookie_name, auth.cookie(request), httponly=True,
-                                samesite="strict", path="/ui/api/v1")
+                                samesite="strict", secure=auth.public_request(request), path="/ui/api/v1")
         return response
 
     @app.get("/", include_in_schema=False)
