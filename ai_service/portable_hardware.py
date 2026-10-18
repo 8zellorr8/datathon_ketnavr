@@ -391,8 +391,8 @@ def select_profile(hardware: dict[str, Any]) -> dict[str, Any]:
         "backend_hint": backend_hint,
         "cache_ram_mib": cache_ram_mib,
         "concurrency": 1,
-        "num_ctx": 8192,
-        "request_timeout_sec": 90,
+        "num_ctx": 6144,
+        "request_timeout_sec": 180,
         "warnings": warnings,
         "recommendations": recommendations,
     }
