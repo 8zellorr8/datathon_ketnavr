@@ -63,7 +63,7 @@
 | Нормативные данные | Python dictionaries `ACTS` и `REGULATIONS` |
 | Проверки | Python `unittest`; тесты HTTP используют управляемый анализатор |
 
-Зависимости сервиса описаны в [backend/requirements.txt](backend/requirements.txt) и [ai_service/requirements.txt](ai_service/requirements.txt). Библиотеки PDF и шрифты хранятся в репозитории: [лицензии](frontend/dist/vendor/THIRD-PARTY.txt).
+Зависимости сервиса описаны в [backend/requirements.txt](https://github.com/8zellorr8/datathon_ketnavr/blob/main/backend/requirements.txt) и [ai_service/requirements.txt](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/requirements.txt). Библиотеки PDF и шрифты хранятся в репозитории: [лицензии](https://github.com/8zellorr8/datathon_ketnavr/blob/main/frontend/dist/vendor/THIRD-PARTY.txt).
 
 Эта сборка использует готовые квантованные веса Qwen. Подключение интерфейса и подготовка весов запускателем не являются дообучением модели. Внешние API OpenAI, NVIDIA или других облачных AI-сервисов в рабочем pipeline не используются.
 
@@ -193,7 +193,7 @@ sh ai_service/Start-ForteBank.sh
 python3 ai_service/Start-ForteBank.py --offline
 ```
 
-При отсутствии необходимых пакетов или весов этот режим завершится ошибкой. Обработка использует локальную модель. Практические результаты и ограничения автономности описаны в [VALIDATION.md](ai_service/VALIDATION.md).
+При отсутствии необходимых пакетов или весов этот режим завершится ошибкой. Обработка использует локальную модель. Практические результаты и ограничения автономности описаны в [VALIDATION.md](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/VALIDATION.md).
 
 ### Доступ с других устройств через Wi-Fi
 
@@ -232,7 +232,7 @@ python ai_service/Start-ForteBank.py --port 8003
 python ai_service/Start-ForteBank.py --offline --no-browser
 ```
 
-Порты по умолчанию: сайт/API — `8001`, Ollama — `11435`. Готовность `/health` подтверждает работу HTTP-сервера, но не факт выполнения моделью анализа. Для ручного запуска FastAPI и параметров модели см. [backend/README.md](backend/README.md) и [переносимый запуск](ai_service/docs/PORTABLE_START.txt).
+Порты по умолчанию: сайт/API — `8001`, Ollama — `11435`. Готовность `/health` подтверждает работу HTTP-сервера, но не факт выполнения моделью анализа. Для ручного запуска FastAPI и параметров модели см. [backend/README.md](https://github.com/8zellorr8/datathon_ketnavr/blob/main/backend/README.md) и [переносимый запуск](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/docs/PORTABLE_START.txt).
 
 Для Linux/macOS в приведённых командах диагностики используйте `python3`. Принудительный запуск на CPU доступен в Windows/Linux через `--cpu`; если Ollama уже работает, нужен отдельный свободный `--model-port`. На CPU возможны существенное замедление и превышение дедлайна. Доступность сайта и наличие модели в `ollama list` сами по себе не подтверждают, что видео успешно проанализировано.
 
@@ -333,11 +333,11 @@ python3 -m venv .venv
 
 ### Модель
 
-Используемый тег и ожидаемый digest зафиксированы в [ai_service/config/local.json](ai_service/config/local.json). Запускатель проверяет соответствие модели. `local_vlm.py` допускает только loopback-адреса и не отправляет кадры облачным AI-сервисам. При запуске собственной Ollama выставляется `OLLAMA_NO_CLOUD=1`.
+Используемый тег и ожидаемый digest зафиксированы в [ai_service/config/local.json](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/config/local.json). Запускатель проверяет соответствие модели. `local_vlm.py` допускает только loopback-адреса и не отправляет кадры облачным AI-сервисам. При запуске собственной Ollama выставляется `OLLAMA_NO_CLOUD=1`.
 
 ### Нормативная база
 
-[backend/catalogue.py](backend/catalogue.py) содержит 12 записей типов событий; у 6 установлен `source_verified=True`. Версия справочника — `2026-10-17.1`. Основной акт указан в локальном справочнике; описание источников и пределов сверки — в [backend/SOURCES.md](backend/SOURCES.md).
+[backend/catalogue.py](https://github.com/8zellorr8/datathon_ketnavr/blob/main/backend/catalogue.py) содержит 12 записей типов событий; у 6 установлен `source_verified=True`. Версия справочника — `2026-10-17.1`. Основной акт указан в локальном справочнике; описание источников и пределов сверки — в [backend/SOURCES.md](https://github.com/8zellorr8/datathon_ketnavr/blob/main/backend/SOURCES.md).
 
 Сопоставление выполняется по точному `rule_id`. Модель не назначает произвольные статьи. Флаг проверки источника не подтверждает юридическую квалификацию конкретного видео. Изменения законодательства и внутренние регламенты банка требуют отдельной проверки и обновления каталога.
 
@@ -347,9 +347,9 @@ python3 -m venv .venv
 
 ## 8. Ограничения текущей версии
 
-- **Распознавание может ошибаться:** возможны пропуски, ложные события и неверная классификация. Подтверждённая точность для произвольных записей или видео жюри не заявляется. История экспериментов и ограничения — в [VALIDATION.md](ai_service/VALIDATION.md); результаты старых конфигураций не следует переносить на изменённые настройки без повторной оценки.
+- **Распознавание может ошибаться:** возможны пропуски, ложные события и неверная классификация. Подтверждённая точность для произвольных записей или видео жюри не заявляется. История экспериментов и ограничения — в [VALIDATION.md](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/VALIDATION.md); результаты старых конфигураций не следует переносить на изменённые настройки без повторной оценки.
 - Проверяются только настроенные категории. Кадры выбираются с временным шагом; короткие действия, перекрытые объекты и другой ракурс могут ухудшить результат. Таймкоды и доказательства следует сверять по исходной записи.
-- Поддерживаются `.mov` и `.mp4` до 180 секунд при наличии декодера для видеопотока в используемой сборке FFmpeg. Файл с разрешённым расширением, но повреждённым или неподдерживаемым содержимым завершится ошибкой. Для длинных роликов предусмотрены отдельные настройки окон, но успешная обработка любого такого файла не гарантируется.
+- Поддерживаются `.mov` и `.mp4` до 180 секунд. Возможность чтения кодека определяется FFmpeg; повреждённые или неподдерживаемые записи возвращают ошибку. Для длинных роликов предусмотрены отдельные настройки окон, но успешная обработка любого такого файла не гарантируется.
 - Лимит всего multipart-запроса — 64 МиБ. Общий дедлайн задания — 300 секунд с учётом загрузки и очереди; внутренний бюджет анализа в конфигурации — 270 секунд. Это ограничения исполнения, а не обещание скорости.
 - Одновременно выполняется один анализ и допускается одно ожидающее задание. Результаты хранятся в памяти до часа, не более 100 завершённых заданий; перезапуск их удаляет. Постоянная история и аккаунты не реализованы.
 - Кнопка прекращения ожидания отменяет браузерный опрос; серверное задание может продолжаться. API отмены задания не предусмотрен.
@@ -358,43 +358,72 @@ python3 -m venv .venv
 - Браузерная авторизация поддерживает localhost и частные адреса локальной сети по HTTP, а также один явно настроенный публичный HTTPS origin. Сам туннель или HTTPS-прокси нужно предоставить отдельно.
 - Текущая сборка не включает подключённый пользовательский LoRA-адаптер и не заявляет дообучение модели на банковском датасете.
 
-## 9. Развёрнутая версия
+## 9. Адреса для сдачи и публичный доступ
 
-**Подтверждённый URL работающей публичной версии в репозитории не указан.**
+Адреса подготовлены для сдачи 18 октября 2026 года:
 
-После локального запуска интерфейс и API доступны по **http://127.0.0.1:8001** либо по адресу компьютера в локальной сети при `--lan`.
+| Поле формы | Значение |
+| --- | --- |
+| Web interface URL | https://stayed-flex-expert-carey.trycloudflare.com/ |
+| API base URL | https://stayed-flex-expert-carey.trycloudflare.com |
+| API key for the jury | Передаётся жюри отдельно; см. `ai_service/data/runtime/api-key.txt` на сервере |
 
-Если HTTPS-туннель уже подготовлен и направлен на порт `8001`, перед запуском сервера задайте его точный origin без завершающего слеша. Приведённый домен — пример, его нужно заменить действующим адресом.
+Полный маршрут загрузки: `POST https://stayed-flex-expert-carey.trycloudflare.com/api/v1/analyze`.
+Маршрут опроса: `GET https://stayed-flex-expert-carey.trycloudflare.com/api/v1/jobs/{job_id}`.
+Оба требуют заголовок `X-API-Key`.
 
-Windows / PowerShell:
+Сайт и API обслуживаются одним сервером, поэтому их базовый адрес совпадает.
+Публичный адрес ведёт через временный HTTPS-туннель на локальный сервер порта `8001`.
+Модель и анализ работают на ноутбуке. Туннель передаёт HTTP-запросы и ответы;
+обращения к внешним облачным AI-сервисам не выполняются.
+
+**Ссылка временная:** ноутбук, интернет, HTTP-сервис и туннель должны оставаться
+включёнными всё время проверки. При новом запуске временного туннеля домен может
+измениться; обновите поля формы и `FORTE_PUBLIC_ORIGIN`.
+
+### Разрешить загрузку через публичный сайт
+
+Сначала остановите ранее запущенный сервер через `Ctrl+C` в его окне.
+Из корня проекта в Windows PowerShell выполните:
 
 ```powershell
-$env:FORTE_PUBLIC_ORIGIN = "https://your-tunnel.example"
+$env:FORTE_PUBLIC_ORIGIN = "https://stayed-flex-expert-carey.trycloudflare.com"
 .\ai_service\Start-ForteBank.cmd --offline --port 8001
 ```
 
-Linux / macOS:
+На Linux/macOS:
 
 ```bash
-export FORTE_PUBLIC_ORIGIN="https://your-tunnel.example"
+export FORTE_PUBLIC_ORIGIN="https://stayed-flex-expert-carey.trycloudflare.com"
 python3 ai_service/Start-ForteBank.py --offline --port 8001
 ```
 
-После изменения `FORTE_PUBLIC_ORIGIN` уже работающий сервер нужно перезапустить. Эта переменная разрешает браузерную сессию для указанного адреса, но сама не создаёт туннель. Публичный API сохраняет проверку `X-API-Key`; Ollama остаётся на loopback. Компьютер и туннель должны работать всё время проверки.
+Переменная содержит точный origin без завершающего слеша. После её изменения
+нужен перезапуск HTTP-сервера. Затем заново откройте публичный сайт для получения
+браузерной сессии. Без этого шага уже открывшаяся страница ещё не подтверждает
+доступность загрузки через публичный домен. API для жюри использует ключ независимо
+от браузерной сессии.
 
-Жюри передаются действующий URL интерфейса, API base URL того же сервера и API-ключ. Путь загрузки — `/api/v1/analyze`, получения результата — `/api/v1/jobs/{job_id}`. Перед сдачей проверьте загрузку реального видео через внешний адрес.
+Эти команды не создают и не перезапускают туннель. Действующий туннель должен
+по-прежнему направлять запросы на `http://127.0.0.1:8001`.
+При настройке нового туннеля замените указанный домен на полученный адрес.
+Ollama остаётся на loopback и отдельно в интернет не публикуется.
+
+До сдачи проверьте внешний адрес, запрос с ключом и анализ видео. Работа `/health`
+подтверждает доступность HTTP-сервера; она не подтверждает качество распознавания
+или успешное завершение анализа.
 
 Репозиторий проекта: [8zellorr8/datathon_ketnavr](https://github.com/8zellorr8/datathon_ketnavr).
 
 ## 10. Дополнительная документация
 
-- [Бэкенд: API, запуск и устройство классов](backend/README.md)
-- [Фронтенд: интерфейс и демо](frontend/README.md)
-- [Контракт интеграции фронтенда](frontend/INTEGRATION.md)
-- [AI: конфигурация и команды](ai_service/README.md)
-- [История измерений и ограничения](ai_service/VALIDATION.md)
-- [Нормативные источники](backend/SOURCES.md)
-- [Переносимый запуск](ai_service/docs/PORTABLE_START.txt)
-- [Доступ через локальную сеть](ai_service/docs/LOCAL_WIFI.txt)
-- [Длинные видео](ai_service/docs/LONG_VIDEO.txt)
-- [Сторонние библиотеки и лицензии](frontend/dist/vendor/THIRD-PARTY.txt)
+- [Бэкенд: API, запуск и устройство классов](https://github.com/8zellorr8/datathon_ketnavr/blob/main/backend/README.md)
+- [Фронтенд: интерфейс и демо](https://github.com/8zellorr8/datathon_ketnavr/blob/main/frontend/README.md)
+- [Контракт интеграции фронтенда](https://github.com/8zellorr8/datathon_ketnavr/blob/main/frontend/INTEGRATION.md)
+- [AI: конфигурация и команды](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/README.md)
+- [История измерений и ограничения](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/VALIDATION.md)
+- [Нормативные источники](https://github.com/8zellorr8/datathon_ketnavr/blob/main/backend/SOURCES.md)
+- [Переносимый запуск](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/docs/PORTABLE_START.txt)
+- [Доступ через локальную сеть](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/docs/LOCAL_WIFI.txt)
+- [Длинные видео](https://github.com/8zellorr8/datathon_ketnavr/blob/main/ai_service/docs/LONG_VIDEO.txt)
+- [Сторонние библиотеки и лицензии](https://github.com/8zellorr8/datathon_ketnavr/blob/main/frontend/dist/vendor/THIRD-PARTY.txt)
